@@ -5,6 +5,7 @@ Microservice-based Telegram notification system.
 ## Services
 
 - `producer` - Nest.js Producer service scaffold. This service will be responsible for accepting events and publishing them to RabbitMQ in the next implementation stage.
+- `panel` - Next.js test panel for sending Telegram notification events to the Producer API.
 
 ## Producer service
 
@@ -30,6 +31,17 @@ npm run start:dev
 ```
 
 By default the service starts on `http://localhost:3000`.
+
+## Notification panel
+
+```bash
+cd panel
+npm install
+npm run build
+npm run start
+```
+
+By default the panel starts on `http://localhost:3001` and proxies requests to `http://127.0.0.1:3000`.
 
 Available endpoints:
 
