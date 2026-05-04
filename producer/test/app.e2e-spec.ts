@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Server } from 'http';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
@@ -20,7 +21,9 @@ describe('Producer service', () => {
   });
 
   it('/health (GET)', () => {
-    return request(app.getHttpServer()).get('/health').expect(200).expect({
+    const httpServer = app.getHttpServer() as Server;
+
+    return request(httpServer).get('/health').expect(200).expect({
       status: 'ok',
       service: 'producer',
     });
