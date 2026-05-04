@@ -5,6 +5,7 @@ Microservice-based Telegram notification system.
 ## Services
 
 - `producer` - Nest.js Producer service scaffold. This service will be responsible for accepting events and publishing them to RabbitMQ in the next implementation stage.
+- `consumer` - Nest.js Consumer service scaffold. This service will be responsible for reading notification events from RabbitMQ and processing them in the next implementation stage.
 - `panel` - Next.js test panel for sending Telegram notification events to the Producer API.
 
 ## Producer service
@@ -78,6 +79,22 @@ Use `targetType: "broadcast"` when the future Consumer should fan out the messag
 
 Both requests publish the RabbitMQ event type `telegram.notification.requested`. The Consumer should read the event envelope and send `payload.message.text` to either `payload.target.chatId` or every stored subscriber when `payload.target.type` is `broadcast`.
 
+## Consumer service
+
+```bash
+cd consumer
+npm install
+npm run start:dev
+```
+
+By default the service starts on `http://localhost:3002`.
+
+Available endpoints:
+
+- `GET /health` - service health check
+- `GET /consumer` - consumer service metadata
+- `GET /api/docs` - Swagger UI
+
 ## Current stage
 
-The repository currently contains the Nest.js Producer service with RabbitMQ publishing. Consumer service, Telegram Bot API integration, full Docker deployment, and broader test coverage are planned for the following stages.
+The repository currently contains the Nest.js Producer service with RabbitMQ publishing, a Consumer service scaffold, and a Next.js notification panel. RabbitMQ consuming, Telegram Bot API integration, full Docker deployment, and broader test coverage are planned for the following stages.
