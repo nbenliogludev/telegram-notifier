@@ -35,7 +35,36 @@ Available endpoints:
 
 - `GET /health` - service health check
 - `POST /producer/events` - publish an event to RabbitMQ
+- `POST /producer/telegram-notifications` - publish a Telegram notification event to RabbitMQ
 - `GET /api/docs` - Swagger UI
+
+### Telegram notification event contract
+
+Use `targetType: "single"` when the notification is for one Telegram chat:
+
+```json
+{
+  "targetType": "single",
+  "chatId": "123456789",
+  "message": "Hello from Telegramify",
+  "parseMode": "HTML",
+  "disableNotification": false
+}
+```
+
+Use `targetType: "broadcast"` when the future Consumer should fan out the message to all known subscribers:
+
+```json
+{
+  "targetType": "broadcast",
+  "message": "System maintenance starts at 21:00",
+  "metadata": {
+    "source": "admin-panel"
+  }
+}
+```
+
+Both requests publish the RabbitMQ event type `telegram.notification.requested`. The Consumer should read the event envelope and send `payload.message.text` to either `payload.target.chatId` or every stored subscriber when `payload.target.type` is `broadcast`.
 
 ## Current stage
 
