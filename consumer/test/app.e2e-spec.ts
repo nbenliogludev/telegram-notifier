@@ -1,13 +1,15 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Server } from 'http';
-import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { HealthController } from '../src/health.controller';
 
 describe('Consumer service', () => {
   let app: INestApplication;
+  const previousAutoStart = process.env.CONSUMER_AUTO_START;
 
   beforeEach(async () => {
+    process.env.CONSUMER_AUTO_START = 'false';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -18,12 +20,17 @@ describe('Consumer service', () => {
 
   afterEach(async () => {
     await app.close();
+
+    if (previousAutoStart === undefined) {
+      delete process.env.CONSUMER_AUTO_START;
+      return;
+    }
+
+    process.env.CONSUMER_AUTO_START = previousAutoStart;
   });
 
   it('/health (GET)', () => {
-    const httpServer = app.getHttpServer() as Server;
-
-    return request(httpServer).get('/health').expect(200).expect({
+    expect(app.get(HealthController).check()).toEqual({
       status: 'ok',
       service: 'consumer',
     });

@@ -12,4 +12,10 @@ export class ConsumerController {
   getMetadata() {
     return this.consumerService.getMetadata();
   }
+
+  @Get('telegram-chats')
+  @ApiOkResponse({ description: 'Known Telegram chats from Bot API updates.' })
+  getTelegramChats() {
+    return this.consumerService.getTelegramChats();
+  }
 }
