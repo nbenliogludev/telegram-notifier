@@ -65,7 +65,7 @@ Use `targetType: "single"` when the notification is for one Telegram chat:
 }
 ```
 
-Use `targetType: "broadcast"` when the future Consumer should fan out the message to all known subscribers:
+Use `targetType: "broadcast"` when the Consumer should fan out the message to all known chats:
 
 ```json
 {
@@ -77,7 +77,7 @@ Use `targetType: "broadcast"` when the future Consumer should fan out the messag
 }
 ```
 
-Both requests publish the RabbitMQ event type `telegram.notification.requested`. The Consumer should read the event envelope and send `payload.message.text` to either `payload.target.chatId` or every stored subscriber when `payload.target.type` is `broadcast`.
+Both requests publish the RabbitMQ event type `telegram.notification.requested`. The Consumer reads the event envelope and sends `payload.message.text` to either `payload.target.chatId` or every broadcast recipient when `payload.target.type` is `broadcast`.
 
 ## Consumer service
 
@@ -111,7 +111,10 @@ returns chats that already interacted with the bot, so each test user must send
 `/start` to the bot first. Phone numbers are only available when a user shares a
 contact with the bot.
 
-Broadcast messages require recipients. For local testing you can provide a comma-separated list:
+Broadcast messages use the union of configured chat ids and known Telegram chats.
+Telegram Bot API does not provide a global "all chats" endpoint; known chats are
+derived from `getUpdates`, so each recipient must interact with the bot first.
+For local testing you can also provide a comma-separated list:
 
 ```bash
 HOST=127.0.0.1 TELEGRAM_BOT_TOKEN=your_bot_token TELEGRAM_BROADCAST_CHAT_IDS=123456789,987654321 npm run start:dev

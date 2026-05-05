@@ -44,10 +44,43 @@ describe('TelegramService', () => {
     );
   });
 
-  it('returns broadcast chat ids from env', () => {
+  it('returns configured broadcast chat ids from env', () => {
     const service = new TelegramService();
 
-    expect(service.getBroadcastChatIds()).toEqual(['1', '2', '3']);
+    expect(service.getConfiguredBroadcastChatIds()).toEqual(['1', '2', '3']);
+  });
+
+  it('returns broadcast chat ids from configured and known chats', async () => {
+    process.env.TELEGRAM_BROADCAST_CHAT_IDS = '1, 2';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        ok: true,
+        result: [
+          {
+            message: {
+              chat: {
+                id: 2,
+                type: 'private',
+                first_name: 'Configured',
+              },
+            },
+          },
+          {
+            message: {
+              chat: {
+                id: 3,
+                type: 'private',
+                first_name: 'Known',
+              },
+            },
+          },
+        ],
+      }),
+    });
+    const service = new TelegramService();
+
+    await expect(service.getBroadcastChatIds()).resolves.toEqual(['1', '2', '3']);
   });
 
   it('returns known chats from Telegram updates', async () => {

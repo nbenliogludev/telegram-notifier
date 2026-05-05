@@ -43,7 +43,7 @@ describe('NotificationProcessorService', () => {
   it('sends broadcast Telegram notifications to configured chat ids', async () => {
     const telegramService = {
       sendMessage,
-      getBroadcastChatIds: jest.fn().mockReturnValue(['1', '2']),
+      getBroadcastChatIds: jest.fn().mockResolvedValue(['1', '2']),
     } as unknown as TelegramService;
     service = new NotificationProcessorService(telegramService);
 
