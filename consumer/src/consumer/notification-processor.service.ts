@@ -27,10 +27,10 @@ export class NotificationProcessorService {
       return;
     }
 
-    const chatIds = this.telegramService.getBroadcastChatIds();
+    const chatIds = await this.telegramService.getBroadcastChatIds();
 
     if (chatIds.length === 0) {
-      this.logger.warn(`Skipping broadcast event ${event.id}: no broadcast chat ids configured`);
+      this.logger.warn(`Skipping broadcast event ${event.id}: no known broadcast recipients`);
       return;
     }
 

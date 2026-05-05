@@ -107,11 +107,20 @@ export class TelegramService {
     );
   }
 
-  getBroadcastChatIds(): string[] {
-    return this.broadcastChatIds
+  async getBroadcastChatIds(): Promise<string[]> {
+    const configuredChatIds = this.getConfiguredBroadcastChatIds();
+    const knownChatIds = (await this.getKnownChats()).map((chat) => chat.id);
+
+    return this.uniqueChatIds([...configuredChatIds, ...knownChatIds]);
+  }
+
+  getConfiguredBroadcastChatIds(): string[] {
+    const chatIds = this.broadcastChatIds
       .split(',')
       .map((chatId) => chatId.trim())
       .filter(Boolean);
+
+    return this.uniqueChatIds(chatIds);
   }
 
   isConfigured(): boolean {
@@ -207,5 +216,9 @@ export class TelegramService {
     }
 
     return contact.phone_number;
+  }
+
+  private uniqueChatIds(chatIds: string[]): string[] {
+    return [...new Set(chatIds)];
   }
 }
