@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = Number(process.env.PORT ?? 3002);
+  const host = process.env.HOST ?? '127.0.0.1';
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Telegramify Consumer API')
@@ -15,7 +16,7 @@ async function bootstrap() {
 
   SwaggerModule.setup('api/docs', app, swaggerDocument);
 
-  await app.listen(port);
+  await app.listen(port, host);
 }
 
 void bootstrap();

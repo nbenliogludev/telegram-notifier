@@ -201,6 +201,33 @@ button:disabled {
   width: 18px;
 }
 
+.recipient-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.chat-summary {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.chat-summary span:first-child {
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.chat-summary span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
@@ -219,6 +246,20 @@ button:disabled {
 
 .primary-button:hover:not(:disabled) {
   background: var(--accent-strong);
+}
+
+.secondary-button {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  font-weight: 700;
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: var(--surface-muted);
 }
 
 .result-stack {
@@ -267,5 +308,9 @@ button:disabled {
 
   .status {
     white-space: normal;
+  }
+
+  .recipient-row {
+    grid-template-columns: 1fr;
   }
 }

@@ -19,6 +19,17 @@ interface HealthState {
   label: string;
 }
 
+interface TelegramChat {
+  id: string;
+  type: string;
+  displayName: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  title?: string;
+  phoneNumber?: string;
+}
+
 const emptyResult = {
   status: 'idle',
 };
@@ -34,10 +45,14 @@ export default function Home() {
   const [result, setResult] = useState<PublishResponse>(emptyResult);
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [chats, setChats] = useState<TelegramChat[]>([]);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [chatError, setChatError] = useState('');
   const [health, setHealth] = useState<HealthState>({
     ok: false,
     label: 'checking',
   });
+  const selectedChat = chats.find((chat) => chat.id === chatId.trim());
 
   const preview = useMemo(() => {
     const payload: Record<string, unknown> = {
@@ -95,6 +110,38 @@ export default function Home() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    void loadChats();
+  }, []);
+
+  async function loadChats() {
+    setChatError('');
+    setIsLoadingChats(true);
+
+    try {
+      const response = await fetch('/api/telegram-chats', {
+        cache: 'no-store',
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatError(body));
+      }
+
+      const loadedChats = Array.isArray(body) ? (body as TelegramChat[]) : [];
+
+      setChats(loadedChats);
+
+      if (!chatId.trim() && loadedChats[0]) {
+        setChatId(loadedChats[0].id);
+      }
+    } catch (loadError) {
+      setChatError(loadError instanceof Error ? loadError.message : 'Could not load chats');
+    } finally {
+      setIsLoadingChats(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -192,15 +239,55 @@ export default function Home() {
           </div>
 
           {targetType === 'single' ? (
-            <div className="field">
-              <label htmlFor="chatId">Chat ID</label>
-              <input
-                id="chatId"
-                onChange={(event) => setChatId(event.target.value)}
-                placeholder="123456789"
-                value={chatId}
-              />
-            </div>
+            <>
+              <div className="field">
+                <label htmlFor="chatSelect">Recipient</label>
+                <div className="recipient-row">
+                  <select
+                    disabled={isLoadingChats}
+                    id="chatSelect"
+                    onChange={(event) => setChatId(event.target.value)}
+                    value={selectedChat ? selectedChat.id : ''}
+                  >
+                    <option value="">Manual chat ID</option>
+                    {chats.map((chat) => (
+                      <option key={chat.id} value={chat.id}>
+                        {formatChatOption(chat)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="secondary-button"
+                    disabled={isLoadingChats}
+                    onClick={() => void loadChats()}
+                    type="button"
+                  >
+                    {isLoadingChats ? 'Loading' : 'Refresh'}
+                  </button>
+                </div>
+                {selectedChat ? (
+                  <div className="chat-summary">
+                    <span>{selectedChat.displayName}</span>
+                    <span>{formatChatDetails(selectedChat)}</span>
+                  </div>
+                ) : (
+                  <p className="muted">
+                    {chats.length === 0 ? 'No known chats yet' : 'Manual recipient'}
+                  </p>
+                )}
+                {chatError ? <p className="error-text">{chatError}</p> : null}
+              </div>
+
+              <div className="field">
+                <label htmlFor="chatId">Chat ID</label>
+                <input
+                  id="chatId"
+                  onChange={(event) => setChatId(event.target.value)}
+                  placeholder="123456789"
+                  value={chatId}
+                />
+              </div>
+            </>
           ) : null}
 
           <div className="field">
@@ -306,4 +393,21 @@ function formatError(response: PublishResponse) {
   }
 
   return response.message ?? 'Request failed';
+}
+
+function formatChatOption(chat: TelegramChat) {
+  const username = chat.username ? ` @${chat.username}` : '';
+
+  return `${chat.displayName}${username} (${chat.id})`;
+}
+
+function formatChatDetails(chat: TelegramChat) {
+  const details = [
+    chat.username ? `@${chat.username}` : undefined,
+    chat.phoneNumber ? `phone ${chat.phoneNumber}` : undefined,
+    chat.type,
+    chat.id,
+  ].filter(Boolean);
+
+  return details.join(' | ');
 }
