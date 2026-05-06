@@ -4,9 +4,40 @@ Microservice-based Telegram notification system.
 
 ## Services
 
-- `producer` - Nest.js Producer service scaffold. This service will be responsible for accepting events and publishing them to RabbitMQ in the next implementation stage.
-- `consumer` - Nest.js Consumer service scaffold. This service will be responsible for reading notification events from RabbitMQ and processing them in the next implementation stage.
+- `producer` - Nest.js Producer service that accepts events and publishes them to RabbitMQ.
+- `consumer` - Nest.js Consumer service that reads notification events from RabbitMQ and sends Telegram messages.
 - `panel` - Next.js test panel for sending Telegram notification events to the Producer API.
+
+## Docker Compose
+
+The whole stack can run with one Docker Compose command:
+
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token docker compose up --build
+```
+
+If you do not need real Telegram delivery yet, omit the token and the services
+will still start:
+
+```bash
+docker compose up --build
+```
+
+Docker Compose starts:
+
+- Producer API: `http://localhost:3000`
+- Consumer API: `http://localhost:3002`
+- Panel: `http://localhost:3001`
+- RabbitMQ Management UI: `http://localhost:15672` (`guest` / `guest`)
+
+Runtime-only Telegram settings can also be placed in a local root `.env` file:
+
+```bash
+cp .env.example .env
+```
+
+Then set `TELEGRAM_BOT_TOKEN` locally. `.env` files are ignored by Git, so the
+bot token must not be committed.
 
 ## Producer service
 
@@ -122,4 +153,4 @@ HOST=127.0.0.1 TELEGRAM_BOT_TOKEN=your_bot_token TELEGRAM_BROADCAST_CHAT_IDS=123
 
 ## Current stage
 
-The repository currently contains the Nest.js Producer service with RabbitMQ publishing, a Consumer service that reads notification events and sends Telegram messages, and a Next.js notification panel. Full Docker deployment and broader test coverage are planned for the following stages.
+The repository currently contains the Nest.js Producer service with RabbitMQ publishing, a Consumer service that reads notification events and sends Telegram messages, a Next.js notification panel, and Docker Compose orchestration for the full local stack.

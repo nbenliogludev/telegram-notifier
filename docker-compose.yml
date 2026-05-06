@@ -16,5 +16,99 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  producer:
+    build:
+      context: ./producer
+    container_name: telegramify-producer
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_EXCHANGE: telegramify.events
+      RABBITMQ_QUEUE: telegramify.notifications
+      RABBITMQ_ROUTING_KEY: telegram.notification
+      RABBITMQ_RETRY_ATTEMPTS: "3"
+      RABBITMQ_RETRY_DELAY_MS: "500"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  consumer:
+    build:
+      context: ./consumer
+    container_name: telegramify-consumer
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3002"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_QUEUE: telegramify.notifications
+      RABBITMQ_PREFETCH: "1"
+      RABBITMQ_RETRY_ATTEMPTS: "3"
+      RABBITMQ_RETRY_DELAY_MS: "1000"
+      CONSUMER_AUTO_START: "true"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_URL: https://api.telegram.org
+      TELEGRAM_BROADCAST_CHAT_IDS: ${TELEGRAM_BROADCAST_CHAT_IDS:-}
+    ports:
+      - "3002:3002"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3002/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  panel:
+    build:
+      context: ./panel
+    container_name: telegramify-panel
+    depends_on:
+      producer:
+        condition: service_healthy
+      consumer:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3001"
+      PRODUCER_API_URL: http://producer:3000
+      CONSUMER_API_URL: http://consumer:3002
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   rabbitmq_data:
