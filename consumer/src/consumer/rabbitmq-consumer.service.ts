@@ -176,7 +176,7 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private getMessageId(message: ConsumeMessage): string {
-    return this.getStringProperty(message.properties.messageId, 'unknown') ?? 'unknown';
+    return this.getStringProperty(message.properties.messageId, 'unknown') as string;
   }
 
   private getHeaders(message: ConsumeMessage): Record<string, unknown> {
