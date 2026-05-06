@@ -7,6 +7,8 @@ Microservice-based Telegram notification system.
 - `producer` - Nest.js Producer service that accepts events and publishes them to RabbitMQ.
 - `consumer` - Nest.js Consumer service that reads notification events from RabbitMQ and sends Telegram messages.
 - `panel` - Next.js test panel for sending Telegram notification events to the Producer API.
+- `prometheus` - metrics storage and alert rule evaluation.
+- `grafana` - local observability dashboard.
 
 ## Docker Compose
 
@@ -29,6 +31,8 @@ Docker Compose starts:
 - Consumer API: `http://localhost:3002`
 - Panel: `http://localhost:3001`
 - RabbitMQ Management UI: `http://localhost:15672` (`guest` / `guest`)
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3003` (`admin` / `admin`)
 
 Runtime-only Telegram settings can also be placed in a local root `.env` file:
 
@@ -38,6 +42,32 @@ cp .env.example .env
 
 Then set `TELEGRAM_BOT_TOKEN` locally. `.env` files are ignored by Git, so the
 bot token must not be committed.
+
+## Observability
+
+Producer and Consumer expose Prometheus metrics:
+
+- Producer metrics: `http://localhost:3000/metrics`
+- Consumer metrics: `http://localhost:3002/metrics`
+- RabbitMQ metrics: `http://localhost:15692/metrics`
+
+Prometheus scrapes all three targets and loads alert rules from
+`observability/prometheus/alert-rules.yml`. Grafana provisions the Prometheus
+datasource and the `Telegramify Overview` dashboard on startup.
+
+The dashboard tracks:
+
+- service availability for Producer, Consumer, and RabbitMQ
+- HTTP request rate, 5xx rate, and p95 latency
+- RabbitMQ publish outcomes, retries, consumer processing, requeues, and rejects
+- Telegram Bot API request success/error/missing-token outcomes
+- Telegram delivery outcomes for single-chat and broadcast notifications
+- known Telegram chats and broadcast fan-out size
+- RabbitMQ queue depth for `telegramify.notifications`
+
+The bundled alert rules cover service downtime, high HTTP error rate, high p95
+latency, RabbitMQ publish failures, rejected consumer messages, and Telegram Bot
+API failures.
 
 ## Producer service
 
@@ -78,6 +108,7 @@ By default the panel starts on `http://127.0.0.1:3001` and proxies requests to `
 Available endpoints:
 
 - `GET /health` - service health check
+- `GET /metrics` - Prometheus metrics
 - `POST /producer/events` - publish an event to RabbitMQ
 - `POST /producer/telegram-notifications` - publish a Telegram notification event to RabbitMQ
 - `GET /api/docs` - Swagger UI
@@ -123,6 +154,7 @@ By default the service starts on `http://127.0.0.1:3002`.
 Available endpoints:
 
 - `GET /health` - service health check
+- `GET /metrics` - Prometheus metrics
 - `GET /consumer` - consumer service metadata
 - `GET /api/docs` - Swagger UI
 
@@ -153,4 +185,4 @@ HOST=127.0.0.1 TELEGRAM_BOT_TOKEN=your_bot_token TELEGRAM_BROADCAST_CHAT_IDS=123
 
 ## Current stage
 
-The repository currently contains the Nest.js Producer service with RabbitMQ publishing, a Consumer service that reads notification events and sends Telegram messages, a Next.js notification panel, and Docker Compose orchestration for the full local stack.
+The repository currently contains the Nest.js Producer service with RabbitMQ publishing, a Consumer service that reads notification events and sends Telegram messages, a Next.js notification panel, Docker Compose orchestration, and a Prometheus/Grafana observability stack for the full local system.

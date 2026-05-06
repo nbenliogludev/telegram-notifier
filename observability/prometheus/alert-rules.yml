@@ -1,0 +1,66 @@
+groups:
+  - name: telegramify-service-health
+    rules:
+      - alert: TelegramifyServiceDown
+        expr: up{job=~"telegramify-producer|telegramify-consumer|rabbitmq"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Telegramify service is down"
+          description: "{{ $labels.job }} target {{ $labels.instance }} has been unavailable for more than 1 minute."
+
+      - alert: TelegramifyHighHttpErrorRate
+        expr: |
+          sum by (job) (rate({__name__=~"telegramify_(producer|consumer)_http_requests_total", status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum by (job) (rate({__name__=~"telegramify_(producer|consumer)_http_requests_total"}[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate"
+          description: "{{ $labels.job }} has more than 5% HTTP 5xx responses over the last 5 minutes."
+
+      - alert: TelegramifyHighHttpLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, le) (rate({__name__=~"telegramify_(producer|consumer)_http_request_duration_seconds_bucket"}[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP p95 latency"
+          description: "{{ $labels.job }} p95 HTTP latency is above 1 second."
+
+  - name: telegramify-pipeline-health
+    rules:
+      - alert: TelegramifyRabbitmqPublishFailures
+        expr: increase(telegramify_producer_rabbitmq_publish_total{status="error"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RabbitMQ publish failures"
+          description: "Producer failed to publish at least one event to RabbitMQ in the last 5 minutes."
+
+      - alert: TelegramifyConsumerRejectedMessages
+        expr: increase(telegramify_consumer_rabbitmq_messages_total{status="rejected"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RabbitMQ message rejected"
+          description: "Consumer rejected at least one RabbitMQ message after retries."
+
+      - alert: TelegramifyTelegramApiFailures
+        expr: increase(telegramify_consumer_telegram_api_requests_total{status!="success"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Telegram Bot API failures"
+          description: "Consumer observed Telegram Bot API errors or missing token events in the last 5 minutes."

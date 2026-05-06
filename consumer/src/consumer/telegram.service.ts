@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MetricsService, TelegramApiStatus } from '../observability/metrics.service';
 
 export interface TelegramMessage {
   text: string;
@@ -72,6 +73,8 @@ export class TelegramService {
   private readonly botToken = process.env.TELEGRAM_BOT_TOKEN;
   private readonly broadcastChatIds = process.env.TELEGRAM_BROADCAST_CHAT_IDS ?? '';
 
+  constructor(private readonly metricsService?: MetricsService) {}
+
   async sendMessage(chatId: string, message: TelegramMessage): Promise<void> {
     await this.callTelegram<TelegramApiResponse>('sendMessage', {
       method: 'POST',
@@ -102,9 +105,13 @@ export class TelegramService {
       this.collectApiChat(chats, update.chat_member?.chat);
     }
 
-    return [...chats.values()].sort((first, second) =>
+    const knownChats = [...chats.values()].sort((first, second) =>
       first.displayName.localeCompare(second.displayName),
     );
+
+    this.metricsService?.setKnownChats(knownChats.length);
+
+    return knownChats;
   }
 
   async getBroadcastChatIds(): Promise<string[]> {
@@ -131,18 +138,32 @@ export class TelegramService {
     method: string,
     init?: RequestInit,
   ): Promise<TResponse> {
-    if (!this.botToken) {
-      throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+    const startedAt = process.hrtime.bigint();
+    let status: TelegramApiStatus = 'error';
+
+    try {
+      if (!this.botToken) {
+        status = 'missing_token';
+        throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+      }
+
+      const response = await fetch(`${this.apiUrl}/bot${this.botToken}/${method}`, init);
+      const body = (await response.json()) as TResponse;
+
+      if (!response.ok || !body.ok) {
+        throw new Error(body.description ?? `Telegram API failed with status ${response.status}`);
+      }
+
+      status = 'success';
+
+      return body;
+    } finally {
+      this.metricsService?.recordTelegramApiRequest(
+        method,
+        status,
+        this.getDurationSeconds(startedAt),
+      );
     }
-
-    const response = await fetch(`${this.apiUrl}/bot${this.botToken}/${method}`, init);
-    const body = (await response.json()) as TResponse;
-
-    if (!response.ok || !body.ok) {
-      throw new Error(body.description ?? `Telegram API failed with status ${response.status}`);
-    }
-
-    return body;
   }
 
   private collectMessageChat(
@@ -220,5 +241,9 @@ export class TelegramService {
 
   private uniqueChatIds(chatIds: string[]): string[] {
     return [...new Set(chatIds)];
+  }
+
+  private getDurationSeconds(startedAt: bigint): number {
+    return Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
   }
 }
