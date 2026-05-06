@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Channel, ChannelModel, connect, ConsumeMessage, Options } from 'amqplib';
+import { MetricsService } from '../observability/metrics.service';
 import { ConsumerEvent } from './interfaces/telegram-notification-event.interface';
 import { NotificationProcessorService } from './notification-processor.service';
 
@@ -16,7 +17,10 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
   private connection?: ChannelModel;
   private channel?: Channel;
 
-  constructor(private readonly notificationProcessor: NotificationProcessorService) {}
+  constructor(
+    private readonly notificationProcessor: NotificationProcessorService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     if (!this.autoStart) {
@@ -59,14 +63,25 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
     }
 
     const eventId = this.getMessageId(message);
+    const startedAt = process.hrtime.bigint();
+
+    this.metricsService.recordRabbitmqMessage('received');
 
     try {
       const event = this.parseEvent(message.content.toString('utf8'));
 
       await this.notificationProcessor.process(event);
       this.channel.ack(message);
+      this.metricsService.recordRabbitmqMessage(
+        'processed',
+        this.getDurationSeconds(startedAt),
+      );
       this.logger.log(`Processed message ${eventId}`);
     } catch (error) {
+      this.metricsService.recordRabbitmqMessage(
+        'failed',
+        this.getDurationSeconds(startedAt),
+      );
       await this.handleProcessingError(message, error);
     }
   }
@@ -86,17 +101,20 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
 
     if (nextRetryCount <= this.retryAttempts) {
       await this.sleep(this.retryDelayMs * nextRetryCount);
+      this.metricsService.recordRabbitmqRetry(nextRetryCount);
       this.channel.sendToQueue(
         this.queue,
         message.content,
         this.buildRetryOptions(message, nextRetryCount),
       );
       this.channel.ack(message);
+      this.metricsService.recordRabbitmqMessage('requeued');
       this.logger.warn(`Requeued message ${eventId}, retry ${nextRetryCount}/${this.retryAttempts}`);
       return;
     }
 
     this.channel.nack(message, false, false);
+    this.metricsService.recordRabbitmqMessage('rejected');
     this.logger.error(`Rejected message ${eventId} after ${this.retryAttempts} retries`);
   }
 
@@ -206,5 +224,9 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
     }
 
     return String(error);
+  }
+
+  private getDurationSeconds(startedAt: bigint): number {
+    return Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
   }
 }

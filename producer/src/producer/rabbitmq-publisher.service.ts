@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { connect, ChannelModel, ConfirmChannel, Options } from 'amqplib';
+import { MetricsService } from '../observability/metrics.service';
 import { ProducerEvent } from './interfaces/producer-event.interface';
 
 export interface RabbitmqPublishResult {
@@ -21,20 +22,42 @@ export class RabbitmqPublisherService implements OnModuleDestroy {
   private channel?: ConfirmChannel;
   private connectPromise?: Promise<ConfirmChannel>;
 
-  async publish(event: ProducerEvent): Promise<RabbitmqPublishResult> {
-    await this.withRetry(async () => {
-      const channel = await this.getChannel();
-      const payload = Buffer.from(JSON.stringify(event));
-      const publishOptions: Options.Publish = {
-        contentType: 'application/json',
-        deliveryMode: 2,
-        messageId: event.id,
-        timestamp: Date.now(),
-      };
+  constructor(private readonly metricsService: MetricsService) {}
 
-      channel.publish(this.exchange, this.routingKey, payload, publishOptions);
-      await channel.waitForConfirms();
-    });
+  async publish(event: ProducerEvent): Promise<RabbitmqPublishResult> {
+    const startedAt = process.hrtime.bigint();
+
+    try {
+      await this.withRetry(async () => {
+        const channel = await this.getChannel();
+        const payload = Buffer.from(JSON.stringify(event));
+        const publishOptions: Options.Publish = {
+          contentType: 'application/json',
+          deliveryMode: 2,
+          messageId: event.id,
+          timestamp: Date.now(),
+        };
+
+        channel.publish(this.exchange, this.routingKey, payload, publishOptions);
+        await channel.waitForConfirms();
+      });
+    } catch (error) {
+      this.metricsService.recordRabbitmqPublish(
+        this.exchange,
+        this.routingKey,
+        'error',
+        this.getDurationSeconds(startedAt),
+      );
+
+      throw error;
+    }
+
+    this.metricsService.recordRabbitmqPublish(
+      this.exchange,
+      this.routingKey,
+      'success',
+      this.getDurationSeconds(startedAt),
+    );
 
     this.logger.log(`Published event ${event.id} to ${this.exchange}:${this.routingKey}`);
 
@@ -94,6 +117,11 @@ export class RabbitmqPublisherService implements OnModuleDestroy {
         this.logger.warn(
           `RabbitMQ publish attempt ${attempt}/${this.retryAttempts} failed: ${this.getErrorMessage(error)}`,
         );
+        this.metricsService.recordRabbitmqPublishRetry(
+          this.exchange,
+          this.routingKey,
+          attempt,
+        );
         await this.closeConnection();
 
         if (attempt < this.retryAttempts) {
@@ -133,5 +161,9 @@ export class RabbitmqPublisherService implements OnModuleDestroy {
     }
 
     return String(error);
+  }
+
+  private getDurationSeconds(startedAt: bigint): number {
+    return Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
   }
 }
