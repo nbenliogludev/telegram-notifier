@@ -1,121 +1,127 @@
-# telegram-notifier
+# Telegramify
 
-Microservice-based Telegram notification system.
+Telegramify is a production-style Telegram notification system built as a small
+microservice stack. It accepts notification requests through an API or panel,
+publishes events to RabbitMQ, consumes them asynchronously, and delivers messages
+through the Telegram Bot API.
 
-## Services
+The project is designed to demonstrate backend work that matters in production:
+Nest.js APIs, asynchronous processing, Docker Compose orchestration, RabbitMQ,
+Prometheus metrics, Grafana dashboards, alert rules, and 100% backend test
+coverage.
 
-- `producer` - Nest.js Producer service that accepts events and publishes them to RabbitMQ.
-- `consumer` - Nest.js Consumer service that reads notification events from RabbitMQ and sends Telegram messages.
-- `panel` - Next.js test panel for sending Telegram notification events to the Producer API.
-- `prometheus` - metrics storage and alert rule evaluation.
-- `grafana` - local observability dashboard.
+## Highlights
 
-## Docker Compose
+| Area | What is implemented |
+| --- | --- |
+| API | Nest.js Producer and Consumer services with Swagger docs |
+| Async pipeline | RabbitMQ queue, producer publish confirms, consumer retries and rejects |
+| Telegram delivery | Single-chat and broadcast notification flows through Telegram Bot API |
+| UI | Next.js panel for sending test notifications and loading known chats |
+| Observability | Prometheus metrics, RabbitMQ metrics, Grafana dashboard, alert rules |
+| Reliability | Health checks, retry counters, Docker Compose dependencies |
+| Testing | Unit and integration tests with 100% backend coverage thresholds |
 
-The whole stack can run with one Docker Compose command:
+## Screenshots
+
+| Panel | Observability |
+| --- | --- |
+| ![Telegramify panel](docs/panel.png) | ![Telegramify Grafana dashboard](docs/grafana.png) |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Panel["Next.js Panel"] --> Producer["Producer API"]
+  Producer --> RabbitMQ["RabbitMQ Queue"]
+  RabbitMQ --> Consumer["Consumer API"]
+  Consumer --> Telegram["Telegram Bot API"]
+
+  Producer --> Prometheus["Prometheus"]
+  Consumer --> Prometheus
+  RabbitMQ --> Prometheus
+  Prometheus --> Grafana["Grafana Dashboard"]
+```
+
+## Quick Start
+
+Run the complete system with one Docker Compose command:
 
 ```bash
 TELEGRAM_BOT_TOKEN=your_bot_token docker compose up --build
 ```
 
-If you do not need real Telegram delivery yet, omit the token and the services
-will still start:
+If you only want to inspect the stack without real Telegram delivery, you can
+start it without a token:
 
 ```bash
 docker compose up --build
 ```
 
-Docker Compose starts:
+The Consumer will still run, but Telegram delivery and Telegram chat discovery
+will report as unconfigured until `TELEGRAM_BOT_TOKEN` is provided.
 
-- Producer API: `http://localhost:3000`
-- Consumer API: `http://localhost:3002`
-- Panel: `http://localhost:3001`
-- RabbitMQ Management UI: `http://localhost:15672` (`guest` / `guest`)
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3003` (`admin` / `admin`)
+## Runtime Configuration
 
-Runtime-only Telegram settings can also be placed in a local root `.env` file:
+Create a local `.env` file when you do not want to pass environment variables in
+the shell:
 
 ```bash
 cp .env.example .env
 ```
 
-Then set `TELEGRAM_BOT_TOKEN` locally. `.env` files are ignored by Git, so the
-bot token must not be committed.
+Then set the values locally:
 
-## Observability
+| Variable | Required | Description |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | For real delivery | Telegram Bot API token. Never commit this value. |
+| `TELEGRAM_BROADCAST_CHAT_IDS` | Optional | Comma-separated chat ids to include in broadcast delivery. |
 
-Producer and Consumer expose Prometheus metrics:
+`.env` files are ignored by Git. The repository only contains safe examples and
+placeholders.
 
-- Producer metrics: `http://localhost:3000/metrics`
-- Consumer metrics: `http://localhost:3002/metrics`
-- RabbitMQ metrics: `http://localhost:15692/metrics`
+## Service Map
 
-Prometheus scrapes all three targets and loads alert rules from
-`observability/prometheus/alert-rules.yml`. Grafana provisions the Prometheus
-datasource and the `Telegramify Overview` dashboard on startup.
+Docker Compose starts all services below:
 
-The dashboard tracks:
+| Service | URL | Credentials | Purpose |
+| --- | --- | --- | --- |
+| Producer API | `http://localhost:3000` | none | Accepts events and publishes to RabbitMQ |
+| Consumer API | `http://localhost:3002` | none | Reads notification events and talks to Telegram |
+| Panel | `http://localhost:3001` | none | Browser UI for sending test notifications |
+| RabbitMQ UI | `http://localhost:15672` | `guest` / `guest` | Queue inspection and management |
+| RabbitMQ metrics | `http://localhost:15692/metrics` | none | Prometheus scrape target |
+| Prometheus | `http://localhost:9090` | none | Metrics storage and alert rules |
+| Grafana | `http://localhost:3003` | `admin` / `admin` | Telegramify dashboard |
 
-- service availability for Producer, Consumer, and RabbitMQ
-- HTTP request rate, 5xx rate, and p95 latency
-- RabbitMQ publish outcomes, retries, consumer processing, requeues, and rejects
-- Telegram Bot API request success/error/missing-token outcomes
-- Telegram delivery outcomes for single-chat and broadcast notifications
-- known Telegram chats and broadcast fan-out size
-- RabbitMQ queue depth for `telegramify.notifications`
+## API Overview
 
-The bundled alert rules cover service downtime, high HTTP error rate, high p95
-latency, RabbitMQ publish failures, rejected consumer messages, and Telegram Bot
-API failures.
+### Producer
 
-## Producer service
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Producer health check |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/producer` | Producer metadata |
+| `POST` | `/producer/events` | Publish a generic event to RabbitMQ |
+| `POST` | `/producer/telegram-notifications` | Publish a Telegram notification event |
+| `GET` | `/api/docs` | Swagger UI |
 
-Start RabbitMQ:
+### Consumer
 
-```bash
-docker compose up -d rabbitmq
-```
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Consumer health check |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/consumer` | Consumer metadata |
+| `GET` | `/consumer/telegram-chats` | Known Telegram chats from Bot API updates |
+| `GET` | `/api/docs` | Swagger UI |
 
-RabbitMQ Management UI is available at `http://localhost:15672`.
+## Sending Notifications
 
-Credentials:
+Use the panel at `http://localhost:3001`, or call the Producer API directly.
 
-- username: `guest`
-- password: `guest`
-
-Start the Producer service:
-
-```bash
-cd producer
-npm install
-HOST=127.0.0.1 PORT=3000 npm run start:dev
-```
-
-By default the service starts on `http://127.0.0.1:3000`.
-
-## Notification panel
-
-```bash
-cd panel
-npm install
-npm run build
-npm run start
-```
-
-By default the panel starts on `http://127.0.0.1:3001` and proxies requests to `http://127.0.0.1:3000`.
-
-Available endpoints:
-
-- `GET /health` - service health check
-- `GET /metrics` - Prometheus metrics
-- `POST /producer/events` - publish an event to RabbitMQ
-- `POST /producer/telegram-notifications` - publish a Telegram notification event to RabbitMQ
-- `GET /api/docs` - Swagger UI
-
-### Telegram notification event contract
-
-Use `targetType: "single"` when the notification is for one Telegram chat:
+Single-chat notification:
 
 ```json
 {
@@ -123,11 +129,14 @@ Use `targetType: "single"` when the notification is for one Telegram chat:
   "chatId": "123456789",
   "message": "Hello from Telegramify",
   "parseMode": "HTML",
-  "disableNotification": false
+  "disableNotification": false,
+  "metadata": {
+    "source": "manual-test"
+  }
 }
 ```
 
-Use `targetType: "broadcast"` when the Consumer should fan out the message to all known chats:
+Broadcast notification:
 
 ```json
 {
@@ -139,9 +148,83 @@ Use `targetType: "broadcast"` when the Consumer should fan out the message to al
 }
 ```
 
-Both requests publish the RabbitMQ event type `telegram.notification.requested`. The Consumer reads the event envelope and sends `payload.message.text` to either `payload.target.chatId` or every broadcast recipient when `payload.target.type` is `broadcast`.
+Both requests publish the event type `telegram.notification.requested`. The
+Consumer reads the event envelope from RabbitMQ and sends `payload.message.text`
+to either one chat or all resolved broadcast recipients.
 
-## Consumer service
+## Telegram Chat Discovery
+
+Telegram bots cannot list every possible chat globally. A chat becomes known to
+the bot only after a user or group interacts with it.
+
+To test real delivery:
+
+1. Open the bot in Telegram and send `/start`.
+2. Read updates without committing the token:
+
+```bash
+curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates"
+```
+
+3. Use the returned `chat.id` in the panel or API.
+
+Broadcast delivery uses the union of:
+
+| Source | Description |
+| --- | --- |
+| `TELEGRAM_BROADCAST_CHAT_IDS` | Explicit local comma-separated chat ids |
+| `getUpdates` known chats | Chats that have already interacted with the bot |
+
+Phone numbers are only available when a user explicitly shares a contact with
+the bot.
+
+## Observability
+
+Prometheus scrapes the Producer, Consumer, and RabbitMQ. Grafana is provisioned
+automatically with the `Telegramify Overview` dashboard and the Prometheus data
+source.
+
+| Metric group | Examples shown in Grafana |
+| --- | --- |
+| Service health | Producer, Consumer, RabbitMQ target availability |
+| HTTP | Request rate, status codes, p95 latency |
+| RabbitMQ publish | Success/error count, publish duration, retry attempts |
+| RabbitMQ consume | Received, processed, failed, requeued, rejected messages |
+| Telegram API | `sendMessage` and `getUpdates` success/error/missing-token rates |
+| Delivery | Single and broadcast delivery outcomes |
+| Broadcast | Recipient count and fan-out rate |
+| Queue depth | Ready and unacked messages for `telegramify.notifications` |
+
+Alert rules live in `observability/prometheus/alert-rules.yml`.
+
+| Alert | Trigger |
+| --- | --- |
+| `TelegramifyServiceDown` | Producer, Consumer, or RabbitMQ target is down |
+| `TelegramifyHighHttpErrorRate` | More than 5% HTTP 5xx responses over 5 minutes |
+| `TelegramifyHighHttpLatency` | p95 HTTP latency above 1 second |
+| `TelegramifyRabbitmqPublishFailures` | Producer publish failures |
+| `TelegramifyConsumerRejectedMessages` | Consumer rejected messages after retries |
+| `TelegramifyTelegramApiFailures` | Telegram API errors or missing-token events |
+
+## Local Development
+
+You can run each service outside Docker while keeping RabbitMQ in Docker.
+
+Start RabbitMQ:
+
+```bash
+docker compose up -d rabbitmq
+```
+
+Run Producer:
+
+```bash
+cd producer
+npm install
+HOST=127.0.0.1 PORT=3000 npm run start:dev
+```
+
+Run Consumer:
 
 ```bash
 cd consumer
@@ -149,40 +232,49 @@ npm install
 HOST=127.0.0.1 PORT=3002 TELEGRAM_BOT_TOKEN=your_bot_token npm run start:dev
 ```
 
-By default the service starts on `http://127.0.0.1:3002`.
-
-Available endpoints:
-
-- `GET /health` - service health check
-- `GET /metrics` - Prometheus metrics
-- `GET /consumer` - consumer service metadata
-- `GET /api/docs` - Swagger UI
-
-To test real Telegram delivery:
-
-1. Open your bot in Telegram and send `/start`.
-2. Find your chat id without committing the token:
+Run Panel:
 
 ```bash
-curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates"
+cd panel
+npm install
+npm run dev
 ```
 
-3. Use that `chat.id` as `chatId` in the panel single-chat form.
+## Testing
 
-The panel can also load known chats from the Consumer service. Telegram only
-returns chats that already interacted with the bot, so each test user must send
-`/start` to the bot first. Phone numbers are only available when a user shares a
-contact with the bot.
+Producer and Consumer enforce 100% coverage thresholds for statements,
+branches, functions, and lines.
 
-Broadcast messages use the union of configured chat ids and known Telegram chats.
-Telegram Bot API does not provide a global "all chats" endpoint; known chats are
-derived from `getUpdates`, so each recipient must interact with the bot first.
-For local testing you can also provide a comma-separated list:
+| Command | Purpose |
+| --- | --- |
+| `cd producer && npm test -- --coverage --runInBand` | Producer unit coverage |
+| `cd consumer && npm test -- --coverage --runInBand` | Consumer unit coverage |
+| `cd producer && npm run test:e2e` | Producer integration tests |
+| `cd consumer && npm run test:e2e` | Consumer integration tests |
+| `cd producer && npm run build` | Producer production build |
+| `cd consumer && npm run build` | Consumer production build |
+| `cd panel && npm run typecheck` | Panel TypeScript check |
+| `docker compose config --quiet` | Compose configuration validation |
 
-```bash
-HOST=127.0.0.1 TELEGRAM_BOT_TOKEN=your_bot_token TELEGRAM_BROADCAST_CHAT_IDS=123456789,987654321 npm run start:dev
+## Project Structure
+
+```text
+.
+|-- producer/        # Nest.js API that publishes events to RabbitMQ
+|-- consumer/        # Nest.js worker/API that consumes events and sends Telegram messages
+|-- panel/           # Next.js notification test panel
+|-- observability/   # Prometheus and Grafana provisioning
+|-- docs/            # Screenshots and project documentation assets
+`-- docker-compose.yml
 ```
 
-## Current stage
+## What This Project Demonstrates
 
-The repository currently contains the Nest.js Producer service with RabbitMQ publishing, a Consumer service that reads notification events and sends Telegram messages, a Next.js notification panel, Docker Compose orchestration, and a Prometheus/Grafana observability stack for the full local system.
+| Requirement area | Where it appears |
+| --- | --- |
+| Nest.js API design | Producer and Consumer controllers, DTO validation, Swagger |
+| Message brokers | RabbitMQ publish/consume flow with retries and rejects |
+| External API integration | Telegram Bot API client and error handling |
+| Docker Compose | Full local stack with health checks and service dependencies |
+| Metrics and dashboards | Prometheus, RabbitMQ Prometheus plugin, Grafana provisioning |
+| Testing discipline | Unit and integration tests with enforced 100% backend coverage |
