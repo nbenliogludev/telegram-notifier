@@ -37,9 +37,9 @@ flowchart LR
   RabbitMQ --> Consumer["Consumer API"]
   Consumer --> Telegram["Telegram Bot API"]
 
-  Producer --> Prometheus["Prometheus"]
-  Consumer --> Prometheus
-  RabbitMQ --> Prometheus
+  Prometheus["Prometheus"] -- "scrapes /metrics" --> Producer
+  Prometheus -- "scrapes /metrics" --> Consumer
+  Prometheus -- "scrapes /metrics" --> RabbitMQ
   Prometheus --> Grafana["Grafana Dashboard"]
 ```
 
@@ -180,9 +180,11 @@ the bot.
 
 ## Observability
 
-Prometheus scrapes the Producer, Consumer, and RabbitMQ. Grafana is provisioned
-automatically with the `Telegramify Overview` dashboard and the Prometheus data
-source.
+Prometheus scrapes the Producer, Consumer, and RabbitMQ. Telegram Bot API is an
+external service, so it is not scraped directly; the Consumer records Telegram
+request outcomes and exposes those counters through its own `/metrics` endpoint.
+Grafana is provisioned automatically with the `Telegramify Overview` dashboard
+and the Prometheus data source.
 
 | Metric group | Examples shown in Grafana |
 | --- | --- |
