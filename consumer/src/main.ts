@@ -3,7 +3,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpMetricsInterceptor } from './observability/http-metrics.interceptor';
 
-async function bootstrap() {
+export async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = Number(process.env.PORT ?? 3002);
   const host = process.env.HOST ?? '127.0.0.1';
@@ -22,4 +22,7 @@ async function bootstrap() {
   await app.listen(port, host);
 }
 
-void bootstrap();
+/* istanbul ignore next */
+if (require.main === module) {
+  void bootstrap();
+}

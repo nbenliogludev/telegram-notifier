@@ -52,4 +52,18 @@ describe('ConsumerService', () => {
       broadcastRecipients: 2,
     });
   });
+
+  it('falls back to configured recipients when Telegram lookup fails', async () => {
+    const telegramService = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      getConfiguredBroadcastChatIds: jest.fn().mockReturnValue(['1']),
+      getBroadcastChatIds: jest.fn().mockRejectedValue(new Error('Telegram down')),
+      getKnownChats: jest.fn().mockResolvedValue([]),
+    } as unknown as TelegramService;
+    const service = new ConsumerService(telegramService);
+
+    await expect(service.getMetadata()).resolves.toMatchObject({
+      broadcastRecipients: 1,
+    });
+  });
 });
